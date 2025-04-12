@@ -3,17 +3,42 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Mail } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Password reset requested for:', email);
-    setIsSubmitted(true);
-    // Password reset request logic would go here
+    
+    if (!email) {
+      toast.error('Please enter your email address');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/reset-password',
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      setIsSubmitted(true);
+      toast.success('Password reset instructions sent to your email');
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      toast.error(error.message || 'Failed to send reset instructions');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -22,7 +47,7 @@ const ForgotPassword = () => {
         <div className="max-w-md mx-auto w-full">
           {/* Logo */}
           <div className="mb-10">
-            <span className="text-2xl font-bold">adon</span>
+            <span className="text-2xl font-bold">the Examiner</span>
           </div>
 
           <Link to="/login" className="inline-flex items-center text-sm text-gray-600 mb-8 hover:text-gray-900">
@@ -51,11 +76,21 @@ const ForgotPassword = () => {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       className="w-full"
+                      disabled={isLoading}
                     />
                   </div>
                   
-                  <Button type="submit" className="w-full bg-black hover:bg-gray-800 text-white">
-                    Reset Password
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-black hover:bg-gray-800 text-white"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : 'Reset Password'}
                   </Button>
                 </div>
               </form>
@@ -75,8 +110,9 @@ const ForgotPassword = () => {
                 <button 
                   onClick={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)} 
                   className="text-blue-600 hover:underline ml-1"
+                  disabled={isLoading}
                 >
-                  Try another email
+                  {isLoading ? 'Sending...' : 'Try again'}
                 </button>
               </p>
               <Link to="/login">

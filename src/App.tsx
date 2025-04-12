@@ -8,11 +8,14 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import ExamUpload from "./pages/ExamUpload";
 import ExamReview from "./pages/ExamReview";
 import StudentExam from "./pages/StudentExam";
+import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -22,18 +25,32 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/examiner/upload" element={<ExamUpload />} />
-          <Route path="/examiner/review/:examId" element={<ExamReview />} />
-          <Route path="/student/exam/:examId" element={<StudentExam />} />
-          <Route path="/" element={<Index />} /> {/* Default route is now Index */}
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/examiner/upload" element={
+              <ProtectedRoute>
+                <ExamUpload />
+              </ProtectedRoute>
+            } />
+            <Route path="/examiner/review/:examId" element={
+              <ProtectedRoute>
+                <ExamReview />
+              </ProtectedRoute>
+            } />
+            <Route path="/student/exam/:examId" element={<StudentExam />} />
+            <Route path="/" element={<Index />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
