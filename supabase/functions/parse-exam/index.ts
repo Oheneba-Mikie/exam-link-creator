@@ -11,6 +11,7 @@ const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY') || '';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 serve(async (req) => {
@@ -20,12 +21,43 @@ serve(async (req) => {
   }
 
   try {
-    const { content, fileType, userId } = await req.json();
+    console.log('Parse-exam function invoked');
+    
+    // Parse the request body
+    let reqBody;
+    try {
+      reqBody = await req.json();
+    } catch (e) {
+      console.error('Error parsing request JSON:', e);
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { content, fileType, userId } = reqBody;
 
     if (!content) {
+      console.error('Missing content in request body');
       return new Response(
         JSON.stringify({ error: 'Missing content in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!userId) {
+      console.error('Missing userId in request body');
+      return new Response(
+        JSON.stringify({ error: 'Missing userId in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!anthropicApiKey) {
+      console.error('ANTHROPIC_API_KEY is not set');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error: ANTHROPIC_API_KEY is not set' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -62,6 +94,8 @@ Return the result as a JSON array with this structure:
   ]
 }`;
 
+    console.log('Calling Claude API');
+    
     // Call Claude API to process the exam content
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -90,6 +124,19 @@ Return the result as a JSON array with this structure:
     }
 
     const claudeResponse = await response.json();
+    console.log('Claude API responded successfully');
+    
+    if (!claudeResponse.content || !claudeResponse.content[0] || !claudeResponse.content[0].text) {
+      console.error('Unexpected Claude response format:', claudeResponse);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid response from Claude API', 
+          details: 'The AI response did not contain the expected content structure' 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const textContent = claudeResponse.content[0].text;
     
     // Extract JSON from Claude's response (it might have markdown or other text around it)
@@ -103,13 +150,16 @@ Return the result as a JSON array with this structure:
         // If no JSON object found, try parsing the entire response
         parsedExam = JSON.parse(textContent);
       }
+      
+      console.log('Successfully parsed Claude response into JSON');
     } catch (e) {
       console.error('Error parsing Claude response:', e);
-      console.log('Claude response:', textContent);
+      console.log('Claude response excerpt:', textContent.substring(0, 500) + '...');
       return new Response(
         JSON.stringify({ 
           error: 'Failed to parse Claude response',
-          rawResponse: textContent 
+          details: e.message,
+          rawResponsePreview: textContent.substring(0, 1000) + '...' 
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -117,67 +167,82 @@ Return the result as a JSON array with this structure:
 
     // Create exam in database if userId is provided
     let examId = null;
-    if (userId) {
-      try {
-        // Insert exam
-        const { data: exam, error: examError } = await supabase
-          .from('exams')
+    try {
+      console.log('Creating exam in database for user:', userId);
+      
+      // Insert exam
+      const { data: exam, error: examError } = await supabase
+        .from('exams')
+        .insert({
+          user_id: userId,
+          title: parsedExam.title || 'Untitled Exam',
+          description: 'Extracted from ' + fileType
+        })
+        .select()
+        .single();
+
+      if (examError) {
+        console.error('Error creating exam in database:', examError);
+        throw examError;
+      }
+      
+      examId = exam.id;
+      console.log('Created exam with ID:', examId);
+
+      // Insert questions and options
+      for (let i = 0; i < parsedExam.questions.length; i++) {
+        const q = parsedExam.questions[i];
+        
+        // Insert question
+        const { data: question, error: questionError } = await supabase
+          .from('exam_questions')
           .insert({
-            user_id: userId,
-            title: parsedExam.title || 'Untitled Exam',
-            description: 'Extracted from ' + fileType
+            exam_id: examId,
+            text: q.text,
+            type: q.type,
+            instruction: q.instruction || null,
+            answer: q.answer || null,
+            position: i + 1
           })
           .select()
           .single();
-
-        if (examError) throw examError;
-        examId = exam.id;
-
-        // Insert questions and options
-        for (let i = 0; i < parsedExam.questions.length; i++) {
-          const q = parsedExam.questions[i];
           
-          // Insert question
-          const { data: question, error: questionError } = await supabase
-            .from('exam_questions')
-            .insert({
-              exam_id: examId,
-              text: q.text,
-              type: q.type,
-              instruction: q.instruction || null,
-              answer: q.answer || null,
-              position: i + 1
-            })
-            .select()
-            .single();
-            
-          if (questionError) throw questionError;
+        if (questionError) {
+          console.error('Error creating question in database:', questionError);
+          throw questionError;
+        }
+        
+        // Insert options for multiple choice questions
+        if (q.options && q.options.length > 0) {
+          const optionsToInsert = q.options.map((opt: any, index: number) => ({
+            question_id: question.id,
+            text: opt.text,
+            is_correct: opt.isCorrect,
+            position: index + 1
+          }));
           
-          // Insert options for multiple choice questions
-          if (q.options && q.options.length > 0) {
-            const optionsToInsert = q.options.map((opt, index) => ({
-              question_id: question.id,
-              text: opt.text,
-              is_correct: opt.isCorrect,
-              position: index + 1
-            }));
+          const { error: optionsError } = await supabase
+            .from('question_options')
+            .insert(optionsToInsert);
             
-            const { error: optionsError } = await supabase
-              .from('question_options')
-              .insert(optionsToInsert);
-              
-            if (optionsError) throw optionsError;
+          if (optionsError) {
+            console.error('Error creating options in database:', optionsError);
+            throw optionsError;
           }
         }
-      } catch (dbError) {
-        console.error('Database error:', dbError);
-        return new Response(
-          JSON.stringify({ error: 'Error saving to database', details: dbError }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
       }
+      
+      console.log('Successfully created all questions and options in database');
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      return new Response(
+        JSON.stringify({ error: 'Error saving to database', details: dbError }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
+    console.log('Exam processing complete, returning response');
+    
     // Return the processed exam data
     return new Response(
       JSON.stringify({ 

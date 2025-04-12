@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,19 +18,39 @@ const ExamUpload = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [processingProgress, setProcessingProgress] = useState<string>('');
   const [progressValue, setProgressValue] = useState<number>(0);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
   const { toast } = useToast();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropAreaRef = useRef<HTMLDivElement>(null);
 
-  // Check if user is authenticated
-  const checkAuth = async () => {
-    const { data } = await supabase.auth.getSession();
-    return !!data.session;
-  };
+  // Check auth status on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        setAuthStatus(data.session ? 'authenticated' : 'unauthenticated');
+        
+        if (!data.session) {
+          toast({
+            title: "Authentication required",
+            description: "Please sign in to use this feature",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error('Error checking authentication:', error);
+        setAuthStatus('unauthenticated');
+      }
+    };
+    
+    checkAuth();
+  }, [toast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFile = e.target.files[0];
+      console.log('File selected:', selectedFile.name, selectedFile.type, selectedFile.size);
       setFile(selectedFile);
       toast({
         title: "File selected",
@@ -45,6 +65,7 @@ const ExamUpload = () => {
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const droppedFile = e.dataTransfer.files[0];
+      console.log('File dropped:', droppedFile.name, droppedFile.type, droppedFile.size);
       setFile(droppedFile);
       toast({
         title: "File dropped",
@@ -56,6 +77,17 @@ const ExamUpload = () => {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    if (dropAreaRef.current) {
+      dropAreaRef.current.classList.add('border-orange-300', 'bg-orange-50');
+    }
+  };
+  
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dropAreaRef.current) {
+      dropAreaRef.current.classList.remove('border-orange-300', 'bg-orange-50');
+    }
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -80,31 +112,37 @@ const ExamUpload = () => {
       return;
     }
 
+    if (authStatus !== 'authenticated') {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to use this feature",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsProcessing(true);
     setProgressValue(10);
-    setProcessingProgress('Checking authentication...');
+    setProcessingProgress('Starting exam processing...');
     
     try {
-      // Check if user is authenticated
-      const isAuthenticated = await checkAuth();
-      setProgressValue(20);
+      // Get current user ID for the API call
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
       
-      if (!isAuthenticated) {
-        toast({
-          title: "Authentication required",
-          description: "Please sign in to use this feature",
-          variant: "destructive"
-        });
-        setIsProcessing(false);
-        return;
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
       
-      setProcessingProgress('Processing content with AI...');
       setProgressValue(30);
+      setProcessingProgress('Processing content with AI...');
+      
+      console.log('Calling parseExamAPI with:', file ? 'File object' : 'Raw text', 'Length:', rawContent.length);
       
       // Call the parse exam API with either the file or raw content
       const parsedExam: ParsedExam = await parseExamAPI(file || rawContent);
       
+      console.log('Exam parsed successfully:', parsedExam);
       setProgressValue(80);
       setProcessingProgress('Saving to database...');
       
@@ -124,7 +162,7 @@ const ExamUpload = () => {
       console.error('Error processing exam:', error);
       toast({
         title: "Processing failed",
-        description: "There was an error processing your exam",
+        description: error instanceof Error ? error.message : "There was an error processing your exam",
         variant: "destructive"
       });
     } finally {
@@ -160,6 +198,17 @@ const ExamUpload = () => {
           </p>
         </div>
         
+        {authStatus === 'unauthenticated' && (
+          <Card className="mb-6 border-orange-300">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3 text-orange-600">
+                <span>⚠️</span>
+                <p>You need to be signed in to use this feature. Please <a href="/login" className="font-medium underline">sign in</a> first.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         <form onSubmit={handleSubmit}>
           <Card className="mb-6">
             <CardHeader>
@@ -170,9 +219,11 @@ const ExamUpload = () => {
             </CardHeader>
             <CardContent>
               <div 
+                ref={dropAreaRef}
                 className="border-2 border-dashed border-gray-300 rounded-md p-6 flex flex-col items-center justify-center cursor-pointer hover:border-orange-300 hover:bg-orange-50 transition-colors"
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
               >
                 <Upload className="h-10 w-10 text-gray-400 mb-2" />
                 {file ? (
@@ -242,7 +293,11 @@ const ExamUpload = () => {
           )}
           
           <div className="flex justify-end">
-            <Button type="submit" disabled={isProcessing} className="gap-2">
+            <Button 
+              type="submit" 
+              disabled={isProcessing || (!file && !rawContent) || authStatus !== 'authenticated'} 
+              className="gap-2"
+            >
               {isProcessing ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
