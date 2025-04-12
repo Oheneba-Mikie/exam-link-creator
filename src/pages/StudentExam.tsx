@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -87,13 +86,13 @@ const StudentExam = () => {
           
           // Fallback dummy exam if nothing is found
           return {
-            id: examId,
+            id: examId || 'sample-exam',
             title: title || 'Sample Exam',
             questions: [
               {
                 id: '1',
                 text: 'What is the capital of France?',
-                type: 'MCQ',
+                type: 'MCQ' as const,
                 options: [
                   { id: 'a', text: 'London', isCorrect: false },
                   { id: 'b', text: 'Paris', isCorrect: true },
@@ -106,7 +105,7 @@ const StudentExam = () => {
               {
                 id: '2',
                 text: 'Explain the concept of photosynthesis.',
-                type: 'essay',
+                type: 'essay' as const,
                 instruction: 'Write a detailed explanation with examples.'
               }
             ]
@@ -114,11 +113,21 @@ const StudentExam = () => {
         };
         
         const examData = await mockFetch();
-        setExam(examData);
+        // Make sure the data has the correct types
+        const typedExam: Exam = {
+          id: examData.id,
+          title: examData.title,
+          questions: examData.questions.map(q => ({
+            ...q,
+            type: q.type as 'multiple-choice' | 'short-answer' | 'essay' | 'MCQ'
+          }))
+        };
+        
+        setExam(typedExam);
         
         // Initialize student answers structure
         setStudentAnswers(
-          examData.questions.map(q => ({
+          typedExam.questions.map(q => ({
             questionId: q.id,
             answerText: '',
             selectedOptionIds: []

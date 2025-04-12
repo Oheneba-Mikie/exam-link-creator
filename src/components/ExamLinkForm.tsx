@@ -11,16 +11,30 @@ import { format } from 'date-fns';
 import { CalendarIcon, Clock } from 'lucide-react';
 import { generateExamLink, formatExpiryTime, calculateExpiryFromNow } from "@/lib/linkGenerator";
 
+// Export the ExamSettings interface so it can be imported by other components
+export interface ExamSettings {
+  title: string;
+  description?: string;
+  password?: string;
+  duration: number;
+  durationUnit: 'minutes' | 'hours';
+  startDate: Date;
+  limitAttempts: boolean;
+  maxAttempts?: number;
+}
+
 interface ExamLinkFormProps {
-  examId: string;
-  examTitle: string;
+  examId?: string;
+  examTitle?: string;
   onLinkGenerated: (link: string) => void;
+  onGenerateLink?: (settings: ExamSettings) => void; // Added for backward compatibility
 }
 
 const ExamLinkForm: React.FC<ExamLinkFormProps> = ({ 
   examId, 
-  examTitle, 
-  onLinkGenerated 
+  examTitle = "Untitled Exam", 
+  onLinkGenerated,
+  onGenerateLink
 }) => {
   const [requirePassword, setRequirePassword] = useState(false);
   const [password, setPassword] = useState('');
@@ -43,7 +57,7 @@ const ExamLinkForm: React.FC<ExamLinkFormProps> = ({
   };
   
   const handleGenerateLink = () => {
-    const link = generateExamLink({
+    const settings: ExamSettings = {
       title: examTitle,
       password: requirePassword ? password : undefined,
       duration,
@@ -51,7 +65,14 @@ const ExamLinkForm: React.FC<ExamLinkFormProps> = ({
       startDate: new Date(),
       limitAttempts,
       maxAttempts: limitAttempts ? maxAttempts : undefined
-    });
+    };
+    
+    const link = generateExamLink(settings);
+    
+    // Support both callback patterns
+    if (onGenerateLink) {
+      onGenerateLink(settings);
+    }
     
     onLinkGenerated(link);
   };

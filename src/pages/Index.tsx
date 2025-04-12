@@ -17,6 +17,10 @@ const Index = () => {
     setCurrentSettings(settings);
   };
 
+  const handleLinkGenerated = (link: string) => {
+    setExamLink(link);
+  };
+
   const handleReset = () => {
     setExamLink(null);
     setCurrentSettings(null);
@@ -50,7 +54,10 @@ const Index = () => {
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="basic">
-                  <ExamLinkForm onGenerateLink={handleGenerateLink} />
+                  <ExamLinkForm 
+                    onLinkGenerated={handleLinkGenerated} 
+                    onGenerateLink={handleGenerateLink}
+                  />
                 </TabsContent>
                 <TabsContent value="schedule" className="h-[400px] flex items-center justify-center text-muted-foreground">
                   Schedule multiple exams feature coming soon
@@ -69,7 +76,7 @@ const Index = () => {
               
               {currentSettings && (
                 <LinkPreview 
-                  examLink={examLink} 
+                  link={examLink} 
                   settings={currentSettings}
                   onReset={handleReset}
                 />
