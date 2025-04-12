@@ -5,14 +5,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Upload, FileText, ArrowRight } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
+import { Upload, FileText, ArrowRight, Loader2 } from 'lucide-react';
+import { useToast } from "@/components/ui/use-toast";
+import { parseExamAPI, ParsedExam } from "@/lib/examParsingService";
+import { useNavigate } from "react-router-dom";
 
 const ExamUpload = () => {
   const [file, setFile] = useState<File | null>(null);
   const [rawContent, setRawContent] = useState<string>('');
-  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -36,28 +39,31 @@ const ExamUpload = () => {
       return;
     }
 
-    setIsUploading(true);
+    setIsProcessing(true);
     
     try {
-      // Mock API call for now
-      // In a real implementation, we would send the file or content to the API endpoint
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call the parse exam API with either the file or raw content
+      const parsedExam: ParsedExam = await parseExamAPI(file || rawContent);
       
       toast({
-        title: "Exam received",
-        description: "Your exam is now being processed",
+        title: "Exam processed successfully",
+        description: `Extracted ${parsedExam.questions.length} questions`,
       });
       
-      // Redirect to review page or dashboard
-      // window.location.href = "/dashboard";
+      // Store the parsed exam in session storage to access it in the review page
+      sessionStorage.setItem('lastParsedExam', JSON.stringify(parsedExam));
+      
+      // Redirect to dashboard or review page
+      navigate('/dashboard');
     } catch (error) {
+      console.error('Error processing exam:', error);
       toast({
-        title: "Upload failed",
-        description: "There was an error uploading your exam",
+        title: "Processing failed",
+        description: "There was an error processing your exam",
         variant: "destructive"
       });
     } finally {
-      setIsUploading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -83,7 +89,7 @@ const ExamUpload = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Upload New Exam</h1>
           <p className="text-gray-600">
-            Upload your exam document or paste its content to extract questions and answers.
+            Upload your exam document or paste its content to extract questions and answers automatically.
           </p>
         </div>
         
@@ -146,9 +152,18 @@ const ExamUpload = () => {
           </Card>
           
           <div className="flex justify-end">
-            <Button type="submit" disabled={isUploading} className="gap-2">
-              {isUploading ? "Processing..." : "Submit for Processing"}
-              {!isUploading && <ArrowRight size={16} />}
+            <Button type="submit" disabled={isProcessing} className="gap-2">
+              {isProcessing ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  Submit for Processing
+                  <ArrowRight size={16} />
+                </>
+              )}
             </Button>
           </div>
         </form>
