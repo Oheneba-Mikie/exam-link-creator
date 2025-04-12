@@ -1,197 +1,192 @@
 
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, Lock, Clock } from 'lucide-react';
-import { calculateExpiryFromNow } from '@/lib/linkGenerator';
+import { CalendarIcon, Clock } from 'lucide-react';
+import { generateExamLink, formatExpiryTime, calculateExpiryFromNow } from "@/lib/linkGenerator";
 
-interface ExamFormProps {
-  onGenerateLink: (settings: ExamSettings) => void;
+interface ExamLinkFormProps {
+  examId: string;
+  examTitle: string;
+  onLinkGenerated: (link: string) => void;
 }
 
-export interface ExamSettings {
-  title: string;
-  description?: string;
-  password?: string;
-  duration: number;
-  durationUnit: 'minutes' | 'hours';
-  startDate: Date;
-  limitAttempts: boolean;
-  maxAttempts?: number;
-}
-
-const ExamLinkForm: React.FC<ExamFormProps> = ({ onGenerateLink }) => {
-  const [title, setTitle] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [requirePassword, setRequirePassword] = useState<boolean>(false);
-  const [duration, setDuration] = useState<number>(60);
+const ExamLinkForm: React.FC<ExamLinkFormProps> = ({ 
+  examId, 
+  examTitle, 
+  onLinkGenerated 
+}) => {
+  const [requirePassword, setRequirePassword] = useState(false);
+  const [password, setPassword] = useState('');
+  const [limitAttempts, setLimitAttempts] = useState(false);
+  const [maxAttempts, setMaxAttempts] = useState(1);
+  const [setExpiryDate, setSetExpiryDate] = useState(true);
+  const [duration, setDuration] = useState(60);
   const [durationUnit, setDurationUnit] = useState<'minutes' | 'hours'>('minutes');
-  const [startDate, setStartDate] = useState<Date>(new Date());
-  const [limitAttempts, setLimitAttempts] = useState<boolean>(false);
-  const [maxAttempts, setMaxAttempts] = useState<number>(1);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const [date, setDate] = useState<Date>(new Date());
+  const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
+  
+  const calculateExpiry = () => {
+    if (!setExpiryDate) return null;
     
-    const settings: ExamSettings = {
-      title,
-      description,
+    if (customDate) {
+      return customDate;
+    }
+    
+    return calculateExpiryFromNow(duration, durationUnit);
+  };
+  
+  const handleGenerateLink = () => {
+    const link = generateExamLink({
+      title: examTitle,
       password: requirePassword ? password : undefined,
       duration,
       durationUnit,
-      startDate,
+      startDate: new Date(),
       limitAttempts,
       maxAttempts: limitAttempts ? maxAttempts : undefined
-    };
+    });
     
-    onGenerateLink(settings);
+    onLinkGenerated(link);
   };
-
+  
   return (
-    <Card className="w-full">
+    <Card>
       <CardHeader>
-        <CardTitle>Create Exam Link</CardTitle>
-        <CardDescription>Configure the settings for your exam link</CardDescription>
+        <CardTitle className="text-xl">Exam Link Settings</CardTitle>
       </CardHeader>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="title">Exam Title *</Label>
-            <Input 
-              id="title" 
-              value={title} 
-              onChange={(e) => setTitle(e.target.value)} 
-              placeholder="Midterm Exam"
-              required
-            />
-          </div>
-          
-          <div className="space-y-1.5">
-            <Label htmlFor="description">Description (Optional)</Label>
-            <Textarea 
-              id="description" 
-              value={description} 
-              onChange={(e) => setDescription(e.target.value)} 
-              placeholder="Enter exam instructions or details"
-              className="resize-none"
-              rows={3}
-            />
-          </div>
-          
-          <div className="flex gap-4">
-            <div className="flex-1 space-y-1.5">
-              <Label htmlFor="duration">Duration</Label>
-              <div className="flex gap-2">
-                <Input 
-                  id="duration" 
-                  type="number" 
-                  min={1} 
-                  value={duration} 
-                  onChange={(e) => setDuration(Number(e.target.value))} 
-                  className="flex-1"
-                  required
-                />
-                <Select 
-                  value={durationUnit} 
-                  onValueChange={(value: 'minutes' | 'hours') => setDurationUnit(value)}
-                >
-                  <SelectTrigger className="w-[110px]">
-                    <SelectValue placeholder="Unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="minutes">Minutes</SelectItem>
-                    <SelectItem value="hours">Hours</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="flex-1 space-y-1.5">
-              <Label>Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(startDate, "PPP")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={(date) => date && setStartDate(date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="require-password">Require password</Label>
             <Switch 
               id="require-password" 
-              checked={requirePassword} 
-              onCheckedChange={setRequirePassword} 
+              checked={requirePassword}
+              onCheckedChange={setRequirePassword}
             />
-            <Label htmlFor="require-password" className="cursor-pointer">Require Password</Label>
           </div>
-          
           {requirePassword && (
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input 
-                  id="password" 
-                  type="text" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  className="pl-8"
-                  placeholder="Enter secure password"
-                  required={requirePassword}
-                />
-                <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              </div>
-            </div>
-          )}
-          
-          <div className="flex items-center space-x-2">
-            <Switch 
-              id="limit-attempts" 
-              checked={limitAttempts} 
-              onCheckedChange={setLimitAttempts} 
-            />
-            <Label htmlFor="limit-attempts" className="cursor-pointer">Limit Attempts</Label>
-          </div>
-          
-          {limitAttempts && (
-            <div className="space-y-1.5">
-              <Label htmlFor="max-attempts">Maximum Attempts</Label>
+            <div className="pt-2">
+              <Label htmlFor="password">Exam password</Label>
               <Input 
-                id="max-attempts" 
-                type="number" 
-                min={1} 
-                value={maxAttempts} 
-                onChange={(e) => setMaxAttempts(Number(e.target.value))} 
-                required={limitAttempts}
+                id="password" 
+                type="password" 
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Set a password..."
               />
             </div>
           )}
-        </CardContent>
-        <CardFooter>
-          <Button type="submit" className="w-full">
-            Generate Exam Link
-          </Button>
-        </CardFooter>
-      </form>
+        </div>
+        
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="set-expiry">Set expiry date</Label>
+            <Switch 
+              id="set-expiry" 
+              checked={setExpiryDate}
+              onCheckedChange={setSetExpiryDate}
+            />
+          </div>
+          {setExpiryDate && (
+            <div className="grid grid-cols-3 gap-2 pt-2">
+              <div className="col-span-1">
+                <Label htmlFor="duration">Duration</Label>
+                <Input 
+                  id="duration" 
+                  type="number" 
+                  min={1}
+                  value={duration}
+                  onChange={e => setDuration(parseInt(e.target.value) || 60)}
+                />
+              </div>
+              <div className="col-span-1">
+                <Label htmlFor="duration-unit">Unit</Label>
+                <select 
+                  id="duration-unit" 
+                  className="w-full h-10 px-3 border border-gray-300 rounded-md"
+                  value={durationUnit}
+                  onChange={e => setDurationUnit(e.target.value as 'minutes' | 'hours')}
+                >
+                  <option value="minutes">Minutes</option>
+                  <option value="hours">Hours</option>
+                </select>
+              </div>
+              <div className="col-span-1">
+                <Label>Expires at</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customDate ? (
+                        format(customDate, 'PPP')
+                      ) : (
+                        formatExpiryTime(calculateExpiryFromNow(duration, durationUnit))
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={customDate || date}
+                      onSelect={date => {
+                        if (date) {
+                          setCustomDate(date);
+                        }
+                      }}
+                      initialFocus
+                    />
+                    <div className="p-3 border-t">
+                      <Label className="text-xs text-gray-500">
+                        Select a custom date
+                      </Label>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="limit-attempts">Limit attempts</Label>
+            <Switch 
+              id="limit-attempts" 
+              checked={limitAttempts}
+              onCheckedChange={setLimitAttempts}
+            />
+          </div>
+          {limitAttempts && (
+            <div className="pt-2">
+              <Label htmlFor="max-attempts">Maximum attempts</Label>
+              <Input 
+                id="max-attempts" 
+                type="number" 
+                min={1}
+                value={maxAttempts}
+                onChange={e => setMaxAttempts(parseInt(e.target.value) || 1)}
+              />
+            </div>
+          )}
+        </div>
+        
+        <Button 
+          onClick={handleGenerateLink} 
+          className="w-full mt-4"
+        >
+          Generate Exam Link
+        </Button>
+      </CardContent>
     </Card>
   );
 };
