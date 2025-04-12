@@ -9,13 +9,21 @@ import { Upload, FileText, ArrowRight, Loader2 } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { parseExamAPI, ParsedExam } from "@/lib/examParsingService";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const ExamUpload = () => {
   const [file, setFile] = useState<File | null>(null);
   const [rawContent, setRawContent] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [processingProgress, setProcessingProgress] = useState<string>('');
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Check if user is authenticated
+  const checkAuth = async () => {
+    const { data } = await supabase.auth.getSession();
+    return !!data.session;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -40,10 +48,27 @@ const ExamUpload = () => {
     }
 
     setIsProcessing(true);
+    setProcessingProgress('Checking authentication...');
     
     try {
+      // Check if user is authenticated
+      const isAuthenticated = await checkAuth();
+      if (!isAuthenticated) {
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to use this feature",
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
+      setProcessingProgress('Processing content with AI...');
+      
       // Call the parse exam API with either the file or raw content
       const parsedExam: ParsedExam = await parseExamAPI(file || rawContent);
+      
+      setProcessingProgress('Saving to database...');
       
       toast({
         title: "Exam processed successfully",
@@ -64,6 +89,7 @@ const ExamUpload = () => {
       });
     } finally {
       setIsProcessing(false);
+      setProcessingProgress('');
     }
   };
 
@@ -89,7 +115,7 @@ const ExamUpload = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Upload New Exam</h1>
           <p className="text-gray-600">
-            Upload your exam document or paste its content to extract questions and answers automatically.
+            Upload your exam document or paste its content to extract questions and answers automatically using AI.
           </p>
         </div>
         
@@ -156,7 +182,7 @@ const ExamUpload = () => {
               {isProcessing ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Processing...
+                  {processingProgress || 'Processing...'}
                 </>
               ) : (
                 <>

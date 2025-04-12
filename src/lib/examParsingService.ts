@@ -1,7 +1,8 @@
 
+import { supabase } from "@/integrations/supabase/client";
+
 /**
  * This service handles exam file parsing and processing.
- * In a real implementation, this would call a backend API endpoint.
  */
 
 export interface ParsedExam {
@@ -22,57 +23,103 @@ export interface ParsedExam {
 }
 
 /**
+ * Extracts text from file using appropriate method based on file type
+ * 
+ * @param file The exam file to parse
+ * @returns A promise that resolves to the text content
+ */
+const extractTextFromFile = async (file: File): Promise<string> => {
+  const reader = new FileReader();
+  
+  return new Promise((resolve, reject) => {
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        resolve(e.target.result.toString());
+      } else {
+        reject(new Error('Failed to read file content'));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Error reading file'));
+    };
+    
+    // Read as text
+    reader.readAsText(file);
+  });
+};
+
+/**
  * Parses an exam file and returns structured content
  * 
  * @param file The exam file to parse
  * @returns A promise that resolves to the parsed exam data
  */
 export const parseExamFile = async (file: File): Promise<ParsedExam> => {
-  // In a real implementation, this would:
-  // 1. Upload the file to the /api/parse-exam endpoint
-  // 2. Extract text from PDF/DOCX using pdf-parse, docx, or an external service
-  // 3. Send content to Claude or GPT-4 with the specialized system prompt
-  // 4. Process and format the response
+  const fileType = file.type || 'text/plain';
+  console.log('Parsing exam file:', file.name, fileType);
   
-  console.log('Parsing exam file:', file.name, file.type);
-
-  // Mock implementation - this simulates what would happen after AI processing
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        id: Math.random().toString(36).substring(7),
-        title: file.name.replace(/\.\w+$/, ''),
-        questions: [
-          {
-            id: '1',
-            text: 'What is the capital of France?',
-            type: 'MCQ',
-            options: [
-              { id: 'a', text: 'London', isCorrect: false },
-              { id: 'b', text: 'Paris', isCorrect: true },
-              { id: 'c', text: 'Berlin', isCorrect: false },
-              { id: 'd', text: 'Madrid', isCorrect: false },
-            ],
-            answer: 'Paris',
-            instruction: 'Choose the correct answer.'
-          },
-          {
-            id: '2',
-            text: 'Explain the concept of photosynthesis.',
-            type: 'essay',
-            instruction: 'Write a detailed explanation with examples.'
-          },
-          {
-            id: '3',
-            text: 'List three main functions of the human liver.',
-            type: 'short-answer',
-            answer: 'Detoxification, metabolism, protein synthesis',
-            instruction: 'Provide a concise answer.'
-          }
-        ]
-      });
-    }, 2000);
-  });
+  try {
+    // Extract file content as text
+    const content = await extractTextFromFile(file);
+    
+    // Get current user (if logged in)
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+    
+    // Call the Supabase edge function to process the exam
+    const { data, error } = await supabase.functions.invoke('parse-exam', {
+      body: {
+        content,
+        fileType,
+        userId
+      }
+    });
+    
+    if (error) {
+      console.error('Error calling parse-exam function:', error);
+      throw new Error(`Error parsing exam: ${error.message}`);
+    }
+    
+    if (!data || !data.success) {
+      throw new Error('Failed to parse exam content');
+    }
+    
+    const parsedData = data.data;
+    
+    // Format the response to match the expected ParsedExam interface
+    return {
+      id: data.examId || Math.random().toString(36).substring(7),
+      title: parsedData.title || file.name.replace(/\.\w+$/, ''),
+      questions: parsedData.questions.map((q: any, index: number) => ({
+        id: String(index + 1),
+        text: q.text,
+        type: q.type,
+        options: q.options?.map((opt: any, optIndex: number) => ({
+          id: String.fromCharCode(97 + optIndex), // a, b, c, d...
+          text: opt.text,
+          isCorrect: opt.isCorrect
+        })),
+        answer: q.answer,
+        instruction: q.instruction
+      }))
+    };
+  } catch (error) {
+    console.error('Error in parseExamFile:', error);
+    // Fallback to a simple exam structure
+    return {
+      id: Math.random().toString(36).substring(7),
+      title: file.name.replace(/\.\w+$/, ''),
+      questions: [
+        {
+          id: '1',
+          text: 'Error parsing exam file. Please check the format and try again.',
+          type: 'essay',
+          instruction: 'Please contact support if this error persists.'
+        }
+      ]
+    };
+  }
 };
 
 /**
@@ -82,64 +129,70 @@ export const parseExamFile = async (file: File): Promise<ParsedExam> => {
  * @returns A promise that resolves to the parsed exam data
  */
 export const parseExamContent = async (content: string): Promise<ParsedExam> => {
-  // In a real implementation, this would:
-  // 1. Send the content to the /api/parse-exam endpoint
-  // 2. Pass content to Claude or GPT-4 with the specialized system prompt:
-  // "You are an Exam Extractor AI. Your job is to extract questions and answers from an uploaded exam document. 
-  // Do not guess. Only use answers if they are explicitly bolded, or marked with 'Answer:'. 
-  // Return the result as a JSON array of question objects."
-  // 3. Process and format the response
-  
   console.log('Parsing exam content, length:', content.length);
-
-  // Mock implementation - this simulates what would happen after AI processing
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        id: Math.random().toString(36).substring(7),
-        title: 'Untitled Exam',
-        questions: [
-          {
-            id: '1',
-            text: 'What is the largest planet in our solar system?',
-            type: 'MCQ',
-            options: [
-              { id: 'a', text: 'Earth', isCorrect: false },
-              { id: 'b', text: 'Jupiter', isCorrect: true },
-              { id: 'c', text: 'Saturn', isCorrect: false },
-              { id: 'd', text: 'Neptune', isCorrect: false },
-            ],
-            answer: 'Jupiter',
-            instruction: 'Select the correct option.'
-          },
-          {
-            id: '2',
-            text: 'Describe the water cycle in detail.',
-            type: 'essay',
-            instruction: 'Include all major phases and processes in your answer.'
-          },
-          {
-            id: '3',
-            text: 'What are the three states of matter?',
-            type: 'short-answer',
-            answer: 'Solid, liquid, gas',
-            instruction: 'List all three states.'
-          }
-        ]
-      });
-    }, 2000);
-  });
+  
+  try {
+    // Get current user (if logged in)
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+    
+    // Call the Supabase edge function
+    const { data, error } = await supabase.functions.invoke('parse-exam', {
+      body: {
+        content,
+        fileType: 'text/plain',
+        userId
+      }
+    });
+    
+    if (error) {
+      console.error('Error calling parse-exam function:', error);
+      throw new Error(`Error parsing exam: ${error.message}`);
+    }
+    
+    if (!data || !data.success) {
+      throw new Error('Failed to parse exam content');
+    }
+    
+    const parsedData = data.data;
+    
+    // Format the response to match the expected ParsedExam interface
+    return {
+      id: data.examId || Math.random().toString(36).substring(7),
+      title: parsedData.title || 'Untitled Exam',
+      questions: parsedData.questions.map((q: any, index: number) => ({
+        id: String(index + 1),
+        text: q.text,
+        type: q.type,
+        options: q.options?.map((opt: any, optIndex: number) => ({
+          id: String.fromCharCode(97 + optIndex), // a, b, c, d...
+          text: opt.text,
+          isCorrect: opt.isCorrect
+        })),
+        answer: q.answer,
+        instruction: q.instruction
+      }))
+    };
+  } catch (error) {
+    console.error('Error in parseExamContent:', error);
+    // Fallback to a simple exam structure
+    return {
+      id: Math.random().toString(36).substring(7),
+      title: 'Untitled Exam',
+      questions: [
+        {
+          id: '1',
+          text: 'Error parsing exam content. Please check the format and try again.',
+          type: 'essay',
+          instruction: 'Please contact support if this error persists.'
+        }
+      ]
+    };
+  }
 };
 
 /**
- * In a real application, this would be an actual API call to the backend
- * that implements the system prompt described in the requirements.
- * 
- * System Prompt Template:
- * "You are an Exam Extractor AI. Your job is to extract questions and answers 
- * from an uploaded exam document. Do not guess. Only use answers if they are 
- * explicitly bolded, or marked with 'Answer:'. Return the result as a JSON array 
- * of question objects."
+ * Unified interface for parsing exam content from either a file or text
  */
 export const parseExamAPI = async (fileOrContent: File | string): Promise<ParsedExam> => {
   if (typeof fileOrContent === 'string') {

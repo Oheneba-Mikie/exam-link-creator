@@ -30,7 +30,7 @@ const App = () => (
           <Route path="/examiner/upload" element={<ExamUpload />} />
           <Route path="/examiner/review/:examId" element={<ExamReview />} />
           <Route path="/student/exam/:examId" element={<StudentExam />} />
-          <Route path="/" element={<Login />} /> {/* Default route is Login */}
+          <Route path="/" element={<Index />} /> {/* Default route is now Index */}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

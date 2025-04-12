@@ -273,6 +273,83 @@ export type Database = {
         }
         Relationships: []
       }
+      exam_questions: {
+        Row: {
+          answer: string | null
+          created_at: string
+          exam_id: string
+          id: string
+          instruction: string | null
+          position: number
+          text: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          answer?: string | null
+          created_at?: string
+          exam_id: string
+          id?: string
+          instruction?: string | null
+          position: number
+          text: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string | null
+          created_at?: string
+          exam_id?: string
+          id?: string
+          instruction?: string | null
+          position?: number
+          text?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_questions_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exams: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          published: boolean
+          published_link: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          published?: boolean
+          published_link?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          published?: boolean
+          published_link?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       game_players: {
         Row: {
           created_at: string | null
@@ -542,6 +619,41 @@ export type Database = {
         }
         Relationships: []
       }
+      question_options: {
+        Row: {
+          created_at: string
+          id: string
+          is_correct: boolean
+          position: number
+          question_id: string
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          position: number
+          question_id: string
+          text: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          position?: number
+          question_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_options_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "exam_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recipients: {
         Row: {
           category_id: string | null
@@ -611,6 +723,54 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_responses: {
+        Row: {
+          created_at: string
+          exam_id: string
+          id: string
+          question_id: string
+          response: string | null
+          score: number | null
+          student_id: string | null
+          student_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          exam_id: string
+          id?: string
+          question_id: string
+          response?: string | null
+          score?: number | null
+          student_id?: string | null
+          student_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          exam_id?: string
+          id?: string
+          question_id?: string
+          response?: string | null
+          score?: number | null
+          student_id?: string | null
+          student_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_responses_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "exam_questions"
             referencedColumns: ["id"]
           },
         ]
