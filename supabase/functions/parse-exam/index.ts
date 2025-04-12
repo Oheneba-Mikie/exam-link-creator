@@ -97,6 +97,7 @@ Return the result as a JSON array with this structure:
     console.log('Calling Claude API');
     
     // Call Claude API to process the exam content
+    // FIX: Changed the API request format to use system parameter instead of system role
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -107,8 +108,8 @@ Return the result as a JSON array with this structure:
       body: JSON.stringify({
         model: 'claude-3-opus-20240229',
         max_tokens: 4000,
+        system: systemPrompt, // Changed from messages array with system role
         messages: [
-          { role: 'system', content: systemPrompt },
           { role: 'user', content: content }
         ]
       })
@@ -214,7 +215,7 @@ Return the result as a JSON array with this structure:
         
         // Insert options for multiple choice questions
         if (q.options && q.options.length > 0) {
-          const optionsToInsert = q.options.map((opt: any, index: number) => ({
+          const optionsToInsert = q.options.map((opt, index) => ({
             question_id: question.id,
             text: opt.text,
             is_correct: opt.isCorrect,
