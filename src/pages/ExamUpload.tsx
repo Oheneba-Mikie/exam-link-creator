@@ -53,8 +53,8 @@ const ExamUpload = () => {
       // Store the parsed exam in session storage to access it in the review page
       sessionStorage.setItem('lastParsedExam', JSON.stringify(parsedExam));
       
-      // Redirect to dashboard or review page
-      navigate('/dashboard');
+      // Redirect to review page with the generated exam ID
+      navigate(`/examiner/review/${parsedExam.id}`);
     } catch (error) {
       console.error('Error processing exam:', error);
       toast({

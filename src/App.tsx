@@ -11,6 +11,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import ExamUpload from "./pages/ExamUpload";
+import ExamReview from "./pages/ExamReview";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/examiner/upload" element={<ExamUpload />} />
+          <Route path="/examiner/review/:examId" element={<ExamReview />} />
           <Route path="/" element={<Login />} /> {/* Default route is Login */}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
