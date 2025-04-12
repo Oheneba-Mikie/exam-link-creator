@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Apple, CheckCircle2 } from 'lucide-react';
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Login attempt with:', {
@@ -15,8 +18,11 @@ const Login = () => {
       password,
       rememberMe
     });
-    // Login logic would go here
+    // In a real app, you would validate credentials here
+    // For now, we'll just redirect to the dashboard
+    navigate('/dashboard');
   };
+
   return <div className="min-h-screen bg-gradient-to-br from-orange-100 to-orange-50 flex flex-col md:flex-row">
       {/* Left side - Login Form */}
       <div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col justify-center">
@@ -138,4 +144,5 @@ const Login = () => {
       </div>
     </div>;
 };
+
 export default Login;
