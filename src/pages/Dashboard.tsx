@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,11 +90,17 @@ const Dashboard = () => {
       </header>
       
       <main className="container py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-          <p className="text-gray-600">
-            Upload exam documents, review extracted questions, and generate links for your students.
-          </p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+            <p className="text-gray-600">
+              Upload exam documents, review extracted questions, and generate links for your students.
+            </p>
+          </div>
+          <Button className="flex items-center gap-2" onClick={() => window.location.href = "/examiner/upload"}>
+            <Upload size={16} />
+            Upload New Exam
+          </Button>
         </div>
         
         <div className="flex mb-8 border-b">
