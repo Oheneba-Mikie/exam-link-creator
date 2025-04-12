@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,14 +10,17 @@ import { useToast } from "@/components/ui/use-toast";
 import { parseExamAPI, ParsedExam } from "@/lib/examParsingService";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Progress } from "@/components/ui/progress";
 
 const ExamUpload = () => {
   const [file, setFile] = useState<File | null>(null);
   const [rawContent, setRawContent] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [processingProgress, setProcessingProgress] = useState<string>('');
+  const [progressValue, setProgressValue] = useState<number>(0);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if user is authenticated
   const checkAuth = async () => {
@@ -27,12 +30,42 @@ const ExamUpload = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+      toast({
+        title: "File selected",
+        description: `Selected file: ${selectedFile.name}`,
+      });
     }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFile = e.dataTransfer.files[0];
+      setFile(droppedFile);
+      toast({
+        title: "File dropped",
+        description: `Selected file: ${droppedFile.name}`,
+      });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setRawContent(e.target.value);
+  };
+
+  const handleBrowseClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,11 +81,14 @@ const ExamUpload = () => {
     }
 
     setIsProcessing(true);
+    setProgressValue(10);
     setProcessingProgress('Checking authentication...');
     
     try {
       // Check if user is authenticated
       const isAuthenticated = await checkAuth();
+      setProgressValue(20);
+      
       if (!isAuthenticated) {
         toast({
           title: "Authentication required",
@@ -64,10 +100,12 @@ const ExamUpload = () => {
       }
       
       setProcessingProgress('Processing content with AI...');
+      setProgressValue(30);
       
       // Call the parse exam API with either the file or raw content
       const parsedExam: ParsedExam = await parseExamAPI(file || rawContent);
       
+      setProgressValue(80);
       setProcessingProgress('Saving to database...');
       
       toast({
@@ -77,6 +115,8 @@ const ExamUpload = () => {
       
       // Store the parsed exam in session storage to access it in the review page
       sessionStorage.setItem('lastParsedExam', JSON.stringify(parsedExam));
+      
+      setProgressValue(100);
       
       // Redirect to review page with the generated exam ID
       navigate(`/examiner/review/${parsedExam.id}`);
@@ -89,6 +129,7 @@ const ExamUpload = () => {
       });
     } finally {
       setIsProcessing(false);
+      setProgressValue(0);
       setProcessingProgress('');
     }
   };
@@ -128,7 +169,11 @@ const ExamUpload = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border-2 border-dashed border-gray-300 rounded-md p-6 flex flex-col items-center justify-center">
+              <div 
+                className="border-2 border-dashed border-gray-300 rounded-md p-6 flex flex-col items-center justify-center cursor-pointer hover:border-orange-300 hover:bg-orange-50 transition-colors"
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+              >
                 <Upload className="h-10 w-10 text-gray-400 mb-2" />
                 {file ? (
                   <div className="flex items-center gap-2 mb-4">
@@ -140,18 +185,22 @@ const ExamUpload = () => {
                     Drag and drop your exam file or
                   </p>
                 )}
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <Button variant="outline" size="sm" type="button">
-                    {file ? "Change File" : "Browse Files"}
-                  </Button>
-                  <Input 
-                    id="file-upload" 
-                    type="file" 
-                    className="hidden" 
-                    accept=".pdf,.docx,.txt" 
-                    onChange={handleFileChange} 
-                  />
-                </label>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  type="button"
+                  onClick={handleBrowseClick}
+                >
+                  {file ? "Change File" : "Browse Files"}
+                </Button>
+                <Input 
+                  id="file-upload" 
+                  ref={fileInputRef}
+                  type="file" 
+                  className="hidden" 
+                  accept=".pdf,.docx,.txt" 
+                  onChange={handleFileChange} 
+                />
               </div>
             </CardContent>
           </Card>
@@ -177,12 +226,27 @@ const ExamUpload = () => {
             </CardContent>
           </Card>
           
+          {isProcessing && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Processing Exam</CardTitle>
+                <CardDescription>
+                  Please wait while we extract questions and answers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Progress value={progressValue} className="h-2" />
+                <p className="text-sm text-center">{processingProgress}</p>
+              </CardContent>
+            </Card>
+          )}
+          
           <div className="flex justify-end">
             <Button type="submit" disabled={isProcessing} className="gap-2">
               {isProcessing ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  {processingProgress || 'Processing...'}
+                  Processing...
                 </>
               ) : (
                 <>
